@@ -14,11 +14,11 @@ import (
 
 	"go.mongodb.org/mongo-driver/bson/bsontype"
 	"go.mongodb.org/mongo-driver/event"
+	"go.mongodb.org/mongo-driver/mongo/description"
 	"go.mongodb.org/mongo-driver/mongo/readconcern"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/bsonx/bsoncore"
 	"go.mongodb.org/mongo-driver/x/mongo/driver"
-	"go.mongodb.org/mongo-driver/x/mongo/driver/description"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/session"
 )
 
@@ -72,7 +72,7 @@ func (f *Find) Result(opts driver.CursorOptions) (*driver.BatchCursor, error) {
 	return driver.NewBatchCursor(f.result, f.session, f.clock, opts)
 }
 
-func (f *Find) processResponse(response bsoncore.Document, srvr driver.Server, desc description.Server) error {
+func (f *Find) processResponse(response bsoncore.Document, srvr driver.Server, desc description.Server, _ int) error {
 	var err error
 	f.result, err = driver.NewCursorResponse(response, srvr, desc)
 	return err
@@ -106,6 +106,9 @@ func (f *Find) Execute(ctx context.Context) error {
 func (f *Find) command(dst []byte, desc description.SelectedServer) ([]byte, error) {
 	dst = bsoncore.AppendStringElement(dst, "find", f.collection)
 	if f.allowDiskUse != nil {
+		if desc.WireVersion == nil || !desc.WireVersion.Includes(4) {
+			return nil, errors.New("the 'allowDiskUse' command parameter requires a minimum server wire version of 4")
+		}
 		dst = bsoncore.AppendBooleanElement(dst, "allowDiskUse", *f.allowDiskUse)
 	}
 	if f.allowPartialResults != nil {
@@ -177,9 +180,7 @@ func (f *Find) command(dst []byte, desc description.SelectedServer) ([]byte, err
 	return dst, nil
 }
 
-// AllowDiskUse when true allows temporary data to be written to disk during the find command. Valid for server
-// versions >= 4.4. Older servers >= 3.2 will report an error for using this option. For servers < 3.2, this setting is
-// ignored.
+// AllowDiskUse when true allows temporary data to be written to disk during the find command."
 func (f *Find) AllowDiskUse(allowDiskUse bool) *Find {
 	if f == nil {
 		f = new(Find)
